@@ -32,6 +32,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+static bool cond_priority_higher(const struct list_elem* elem1, const struct list_elem* elem2, void* aux);
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -245,6 +246,7 @@ lock_held_by_current_thread(const struct lock* lock) {
 struct semaphore_elem {
   struct list_elem elem; /* List element. */
   struct semaphore semaphore; /* This semaphore. */
+  struct thread* thread; /* Thread waiting for this semaphore. */
 };
 
 /* Initializes condition variable COND.  A condition variable
@@ -279,6 +281,7 @@ cond_init(struct condition* cond) {
    we need to sleep. */
 void cond_wait(struct condition* cond, struct lock* lock) {
   struct semaphore_elem waiter;
+  waiter.thread = thread_current();
 
   ASSERT(cond != NULL);
   ASSERT(lock != NULL);
@@ -286,7 +289,7 @@ void cond_wait(struct condition* cond, struct lock* lock) {
   ASSERT(lock_held_by_current_thread (lock));
 
   sema_init(&waiter.semaphore, 0);
-  list_insert_ordered(&cond->waiters, &waiter.elem, thread_priority_higher, NULL);
+  list_insert_ordered(&cond->waiters, &waiter.elem, cond_priority_higher, NULL);
   lock_release(lock);
   sema_down(&waiter.semaphore);
   lock_acquire(lock);
@@ -323,4 +326,11 @@ cond_broadcast(struct condition* cond, struct lock* lock) {
 
   while (!list_empty(&cond->waiters))
     cond_signal(cond, lock);
+}
+
+static bool cond_priority_higher(const struct list_elem* elem1, const struct list_elem* elem2, void* aux) {
+  struct semaphore_elem* e1 = list_entry(elem1, struct semaphore_elem, elem);
+  struct semaphore_elem* e2 = list_entry(elem2, struct semaphore_elem, elem);
+
+  return e1->thread->priority > e2->thread->priority;
 }
