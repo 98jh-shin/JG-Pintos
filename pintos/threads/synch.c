@@ -57,8 +57,7 @@ sema_init(struct semaphore* sema, unsigned value) {
    interrupts disabled, but if it sleeps then the next scheduled
    thread will probably turn interrupts back on. This is
    sema_down function. */
-void
-sema_down(struct semaphore* sema) {
+void sema_down(struct semaphore* sema) {
   enum intr_level old_level;
 
   ASSERT(sema != NULL);
@@ -66,7 +65,7 @@ sema_down(struct semaphore* sema) {
 
   old_level = intr_disable();
   while (sema->value == 0) {
-    list_push_back(&sema->waiters, &thread_current()->elem);
+    list_insert_ordered(&sema->waiters, &thread_current()->elem, thread_priority_higher, NULL);
     thread_block();
   }
   sema->value--;
@@ -278,8 +277,7 @@ cond_init(struct condition* cond) {
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
-void
-cond_wait(struct condition* cond, struct lock* lock) {
+void cond_wait(struct condition* cond, struct lock* lock) {
   struct semaphore_elem waiter;
 
   ASSERT(cond != NULL);
@@ -288,6 +286,7 @@ cond_wait(struct condition* cond, struct lock* lock) {
   ASSERT(lock_held_by_current_thread (lock));
 
   sema_init(&waiter.semaphore, 0);
+  list_insert_ordered(&cond->waiters, &waiter.elem, thread_priority_higher, NULL);
   list_push_back(&cond->waiters, &waiter.elem);
   lock_release(lock);
   sema_down(&waiter.semaphore);
@@ -301,8 +300,7 @@ cond_wait(struct condition* cond, struct lock* lock) {
    An interrupt handler cannot acquire a lock, so it does not
    make sense to try to signal a condition variable within an
    interrupt handler. */
-void
-cond_signal(struct condition* cond, struct lock* lock UNUSED) {
+void cond_signal(struct condition* cond, struct lock* lock UNUSED) {
   ASSERT(cond != NULL);
   ASSERT(lock != NULL);
   ASSERT(!intr_context ());
