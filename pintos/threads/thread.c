@@ -200,6 +200,8 @@ tid_t thread_create(const char* name, int priority, thread_func* function, void*
   t->tf.cs = SEL_KCSEG;
   t->tf.eflags = FLAG_IF;
 
+  list_init(&t->donations);
+
   /* Add to run queue. */
   thread_unblock(t);
 
