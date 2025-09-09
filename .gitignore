@@ -28,11 +28,3 @@ core
 
 # macOS
 .DS_Store
-<<<<<<< HEAD
-=======
-/98jh-shin/.clang-format
-.gitignore
-/.devcontainer/
-/.idea/
-/origin/
->>>>>>> d60907c (test: test용 sh 삽입 및 테스트)

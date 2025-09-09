@@ -12,10 +12,10 @@
 
 /* States in a thread's life cycle. */
 enum thread_status {
-    THREAD_RUNNING, /* Running thread. */
-    THREAD_READY, /* Not running but ready to run. */
-    THREAD_BLOCKED, /* Waiting for an event to trigger. */
-    THREAD_DYING /* About to be destroyed. */
+  THREAD_RUNNING, /* Running thread. */
+  THREAD_READY, /* Not running but ready to run. */
+  THREAD_BLOCKED, /* Waiting for an event to trigger. */
+  THREAD_DYING /* About to be destroyed. */
 };
 
 /* Thread identifier type.
@@ -85,29 +85,35 @@ typedef int tid_t;
  * only because they are mutually exclusive: only a thread in the
  * ready state is on the run queue, whereas only a thread in the
  * blocked state is on a semaphore wait list. */
+#define MAX_DONATION 8
 struct thread {
-    /* Owned by thread.c. */
-    tid_t tid; /* Thread identifier. */
-    enum thread_status status; /* Thread state. */
-    char name[16]; /* Name (for debugging purposes). */
-    int priority; /* Priority. */
-    int64_t wakeup_tick;
+  /* Owned by thread.c. */
+  tid_t tid; /* Thread identifier. */
+  enum thread_status status; /* Thread state. */
+  char name[16]; /* Name (for debugging purposes). */
+  int priority; /* Priority. */
 
-    /* Shared between thread.c and synch.c. */
-    struct list_elem elem; /* List element. */
+  int64_t wakeup_tick;
+  int origin_priority;
+  struct list donators;
+  struct lock *waiting_lock;
+  struct list_elem donate_elem;
+  /* Shared between thread.c and synch.c. */
+  struct list_elem elem; /* List element. */
+
 
 #ifdef USERPROG
-    /* Owned by userprog/process.c. */
-    uint64_t* pml4; /* Page map level 4 */
+  /* Owned by userprog/process.c. */
+  uint64_t* pml4; /* Page map level 4 */
 #endif
 #ifdef VM
-    /* Table for whole virtual memory owned by thread. */
-    struct supplemental_page_table spt;
+  /* Table for whole virtual memory owned by thread. */
+  struct supplemental_page_table spt;
 #endif
 
-    /* Owned by thread.c. */
-    struct intr_frame tf; /* Information for switching */
-    unsigned magic; /* Detects stack overflow. */
+  /* Owned by thread.c. */
+  struct intr_frame tf; /* Information for switching */
+  unsigned magic; /* Detects stack overflow. */
 };
 
 /* If false (default), use round-robin scheduler.
@@ -145,5 +151,6 @@ int thread_get_load_avg(void);
 void do_iret(struct intr_frame* tf);
 
 int get_highest_priority_ready();
-
+bool thread_priority_higher(const struct list_elem* elem1,
+                                   const struct list_elem* elem2, void* aux);
 #endif /* threads/thread.h */

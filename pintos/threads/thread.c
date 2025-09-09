@@ -80,7 +80,6 @@ static tid_t allocate_tid(void);
 static uint64_t gdt[3] = {0, 0x00af9a000000ffff, 0x00cf92000000ffff};
 
 // 여기부턴 내가 만듬
-static bool thread_priority_higher(const struct list_elem* elem1, const struct list_elem* elem2, void* aux);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -201,13 +200,15 @@ tid_t thread_create(const char* name, int priority, thread_func* function, void*
   t->tf.cs = SEL_KCSEG;
   t->tf.eflags = FLAG_IF;
 
+
+
   /* Add to run queue. */
   thread_unblock(t);
 
-  /*struct thread* curr = thread_current();
+  struct thread* curr = thread_current();
   if (t->priority > curr->priority) {
     thread_yield();
-  }*/
+  }
 
   return tid;
 }
@@ -309,9 +310,9 @@ void thread_yield(void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
   thread_current()->priority = new_priority;
-  /*if (new_priority < get_highest_priority_ready()) {
+  if (new_priority < get_highest_priority_ready()) {
     thread_yield();
-  }*/
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -404,6 +405,10 @@ static void init_thread(struct thread* t, const char* name, int priority) {
   t->tf.rsp = (uint64_t)t + PGSIZE - sizeof(void*);
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+
+  list_init(&t->donators);
+  t->waiting_lock = NULL;
+  t->origin_priority = priority;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -578,18 +583,18 @@ static tid_t allocate_tid(void) {
   return tid;
 }
 
-static bool thread_priority_higher(const struct list_elem* elem1, const struct list_elem* elem2, void* aux) {
+bool thread_priority_higher(const struct list_elem* elem1, const struct list_elem* elem2, void* aux) {
   struct thread* t1 = list_entry(elem1, struct thread, elem);
   struct thread* t2 = list_entry(elem2, struct thread, elem);
 
   return t1->priority > t2->priority;
 }
 
-int get_highest_priority_ready(){
+int get_highest_priority_ready() {
   if (list_empty(&ready_list)) {
     return 0;
   }
 
-  struct thread *t = list_entry(list_front(&ready_list), struct thread, elem);
+  struct thread* t = list_entry(list_front(&ready_list), struct thread, elem);
   return t->priority;
 }
