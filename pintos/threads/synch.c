@@ -35,7 +35,6 @@
 
 
 static bool cond_priority_higher(const struct list_elem* elem1, const struct list_elem* elem2, void* aux);
-static void update_priority_by_donators(struct thread *holder);
 static bool donator_priority_higher(const struct list_elem *a, const struct list_elem *b, void *aux);
 static void donate_priority(struct thread *holder);
 static void remove_donations_by_lock(struct lock *lock);
@@ -352,10 +351,6 @@ static void donate_priority(struct thread *holder) {
   struct thread *curr = thread_current();
   if (curr->priority > holder->priority) {
 
-    if (list_empty(&holder->donators)) {
-      holder->origin_priority = holder->priority;
-    }
-
     list_insert_ordered(&holder->donators, &curr->donate_elem, donator_priority_higher, NULL);
     update_priority_by_donators(holder);
 
@@ -380,16 +375,16 @@ static void remove_donations_by_lock(struct lock *lock) {
       elem = list_next(elem);
     }
   }
-
   update_priority_by_donators(t);
 }
 
-static void update_priority_by_donators(struct thread *holder) {
-  if (list_empty(&holder->donators)) {
-    holder->priority = holder->origin_priority;
-  } else {
+void update_priority_by_donators(struct thread *holder) {
+  holder->priority = holder->origin_priority;
+  if (!list_empty(&holder->donators)) {
     struct thread *highest = list_entry(list_front(&holder->donators), struct thread, donate_elem);
-    holder->priority = highest->priority;
+    if (holder->priority < highest->priority) {
+      holder->priority = highest->priority;
+    }
   }
 }
 

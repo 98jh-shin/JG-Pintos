@@ -200,8 +200,6 @@ tid_t thread_create(const char* name, int priority, thread_func* function, void*
   t->tf.cs = SEL_KCSEG;
   t->tf.eflags = FLAG_IF;
 
-
-
   /* Add to run queue. */
   thread_unblock(t);
 
@@ -309,8 +307,21 @@ void thread_yield(void) {
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority(int new_priority) {
-  thread_current()->priority = new_priority;
-  if (new_priority < get_highest_priority_ready()) {
+  struct thread *curr = thread_current();
+
+  // origin_priority 업데이트 (기본 우선순위)
+  curr->origin_priority = new_priority;
+
+  // donation이 없다면 바로 적용
+  if (list_empty(&curr->donators)) {
+    curr->priority = new_priority;
+  } else {
+    // donation이 있다면 재계산 (donation vs new_priority 중 높은 것)
+    update_priority_by_donators(curr);
+  }
+
+  // 우선순위가 낮아졌으면 yield
+  if (curr->priority < get_highest_priority_ready()) {
     thread_yield();
   }
 }

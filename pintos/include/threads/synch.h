@@ -38,11 +38,7 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-struct donation {
-  struct list_elem elem;
-  struct thread *donator;
-  int donate_priority;
-};
+void update_priority_by_donators(struct thread *holder);
 
 /* Optimization barrier.
  *
