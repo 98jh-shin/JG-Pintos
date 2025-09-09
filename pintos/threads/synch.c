@@ -28,7 +28,6 @@
 
 #include "threads/synch.h"
 #include <stdio.h>
-#include <string.h>
 
 #include "threads/interrupt.h"
 #include "threads/thread.h"
@@ -37,7 +36,9 @@
 
 static bool cond_priority_higher(const struct list_elem* elem1, const struct list_elem* elem2, void* aux);
 static void update_priority_by_donators(struct thread *holder);
-static bool donator_priority_higher(const struct list_elem *a, const struct list_elem *b, void *aux)
+static bool donator_priority_higher(const struct list_elem *a, const struct list_elem *b, void *aux);
+static void donate_priority(struct thread *holder);
+static void remove_donations_by_lock(struct lock *lock);
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -47,8 +48,7 @@ static bool donator_priority_higher(const struct list_elem *a, const struct list
 
    - up or "V": increment the value (and wake up one waiting
    thread, if any). */
-void
-sema_init(struct semaphore* sema, unsigned value) {
+void sema_init(struct semaphore* sema, unsigned value) {
   ASSERT(sema != NULL);
 
   sema->value = value;
@@ -195,8 +195,14 @@ void lock_acquire(struct lock* lock) {
   ASSERT(!intr_context ());
   ASSERT(!lock_held_by_current_thread (lock));
 
+  if (lock->holder != NULL) {
+    thread_current()->waiting_lock = lock;
+    donate_priority(lock->holder);
+  }
+
   sema_down(&lock->semaphore);
   lock->holder = thread_current();
+  thread_current()->waiting_lock = NULL;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -227,7 +233,10 @@ void lock_release(struct lock* lock) {
   ASSERT(lock != NULL);
   ASSERT(lock_held_by_current_thread (lock));
 
+  remove_donations_by_lock(lock);
+
   lock->holder = NULL;
+
   sema_up(&lock->semaphore);
 }
 
@@ -336,6 +345,10 @@ static bool cond_priority_higher(const struct list_elem* elem1, const struct lis
  *
  */
 static void donate_priority(struct thread *holder) {
+  if (holder == NULL) {
+    return;
+  }
+
   struct thread *curr = thread_current();
   if (curr->priority > holder->priority) {
 
@@ -344,18 +357,31 @@ static void donate_priority(struct thread *holder) {
     }
 
     list_insert_ordered(&holder->donators, &curr->donate_elem, donator_priority_higher, NULL);
-
-    // 2. holder의 effective priority 업데이트
     update_priority_by_donators(holder);
 
-    // 3. 연쇄 donation 처리 (nested donation)
-    // TODO: holder가 다른 lock을 기다리고 있다면?
+    if (holder->waiting_lock != NULL && holder->waiting_lock->holder != NULL) {
+      donate_priority(holder->waiting_lock->holder);
+    }
   }
-
 }
 
 static void remove_donations_by_lock(struct lock *lock) {
-  // TODO: 특정 lock과 관련된 donations 제거
+  if (lock->holder == NULL) {
+    return;
+  }
+  struct thread *t = lock->holder;
+  struct list_elem *elem = list_begin(&t->donators);
+
+  while (elem != list_end(&t->donators)) {
+    struct thread *donator = list_entry(elem, struct thread, donate_elem);
+    if (donator->waiting_lock == lock) {
+      elem = list_remove(elem);
+    } else {
+      elem = list_next(elem);
+    }
+  }
+
+  update_priority_by_donators(t);
 }
 
 static void update_priority_by_donators(struct thread *holder) {

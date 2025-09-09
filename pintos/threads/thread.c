@@ -200,7 +200,7 @@ tid_t thread_create(const char* name, int priority, thread_func* function, void*
   t->tf.cs = SEL_KCSEG;
   t->tf.eflags = FLAG_IF;
 
-  list_init(&t->donators);
+
 
   /* Add to run queue. */
   thread_unblock(t);
@@ -405,6 +405,10 @@ static void init_thread(struct thread* t, const char* name, int priority) {
   t->tf.rsp = (uint64_t)t + PGSIZE - sizeof(void*);
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+
+  list_init(&t->donators);
+  t->waiting_lock = NULL;
+  t->origin_priority = priority;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
